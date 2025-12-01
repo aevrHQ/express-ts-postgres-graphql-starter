@@ -16,6 +16,7 @@ A starter project for setting up a TypeScript Express server with Apollo GraphQL
 - **API Key Management**: Secure API key generation and validation.
 - **Password Reset**: Secure password reset functionality.
 - **Environment Configuration**: `.env` file support for managing sensitive configurations.
+- **Security**: Row Level Security (RLS) enabled by default on all tables.
 
 ---
 
@@ -294,6 +295,47 @@ docker-compose -f docker-compose.prod.yml up --build
 ## Testing
 
 Currently, no tests are implemented. You can add tests using a framework like **Jest** or **Mocha**.
+
+---
+
+## Database Management
+
+### Adding New Tables
+
+With Prisma, the workflow is slightly different from Mongoose. Instead of just defining a schema in code, you manage the database structure via migrations.
+
+1.  **Define the Model**: Add your new model to `prisma/schema.prisma`.
+
+    ```prisma
+    model Post {
+      id        String   @id @default(uuid())
+      title     String
+      content   String
+      published Boolean  @default(false)
+      authorId  String
+      author    User     @relation(fields: [authorId], references: [id])
+    }
+    ```
+
+2.  **Create Migration**: Run the following command to create a migration file without applying it immediately (so you can add RLS).
+
+    ```bash
+    npx prisma migrate dev --create-only --name add_post_model
+    ```
+
+3.  **Enable RLS (Recommended)**: Open the newly generated SQL file in `prisma/migrations/<timestamp>_add_post_model/migration.sql` and append:
+
+    ```sql
+    ALTER TABLE "Post" ENABLE ROW LEVEL SECURITY;
+    ```
+
+4.  **Apply Migration**: Apply the changes to your local database.
+
+    ```bash
+    npx prisma migrate dev
+    ```
+
+5.  **Generate Client**: The Prisma Client is automatically regenerated after the migration, giving you full type safety for your new model immediately.
 
 ---
 
