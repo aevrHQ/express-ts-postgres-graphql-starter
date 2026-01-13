@@ -1,6 +1,8 @@
 {
   "ignore": [".git", "node_modules", "dist"],
   "watch": ["./src"],
-  "exec": "npm start",
+  "exec": "node --loader ts-node/esm ./src/index.ts",
+  "signal": "SIGTERM",
+  "delay": 1000,
   "ext": "ts"
 }

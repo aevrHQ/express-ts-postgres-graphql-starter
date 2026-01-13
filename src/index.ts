@@ -138,5 +138,47 @@ connectDB();
 await new Promise<void>((resolve) =>
   httpServer.listen({ port: PORT }, resolve)
 );
+import prisma from "./config/prisma.js";
+
 console.log(`🚀 Server ready at http://localhost:${PORT}/`);
 console.log(`🚀 Server ready on network at ${formatIPUrl(PORT as number)}`);
+
+// Graceful shutdown
+let isShuttingDown = false;
+const shutdown = async () => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log("Shutting down server...");
+
+  // Close HTTP server
+  if (httpServer) {
+    // Force close any existing connections
+    httpServer.closeAllConnections();
+
+    await new Promise<void>((resolve) => {
+      httpServer.close((err) => {
+        // Ignore error if server is not running
+        if (err) console.log("Server close error (ignored):", err.message);
+        resolve();
+      });
+    });
+    console.log("HTTP Server closed");
+  }
+
+  // Disconnect from database
+  try {
+    await prisma.$disconnect();
+    console.log("Database disconnected");
+  } catch (e) {
+    console.error("Error disconnecting database:", e);
+  }
+
+  process.exit(0);
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+// Handle nodemon restart signal (legacy)
+process.on("SIGUSR2", shutdown);
+// Handle nodemon restart signal
+process.on("SIGUSR2", shutdown);
