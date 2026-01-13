@@ -24,6 +24,7 @@ import {
 import { ApiError } from "./services/error.services.js";
 import uploadRouter from "./routes/upload.routes.js";
 import authRouter from "./routes/auth.routes.js";
+import { formatIPUrl } from "@untools/ip-url";
 
 interface MyContext {
   token?: string;
@@ -138,3 +139,4 @@ await new Promise<void>((resolve) =>
   httpServer.listen({ port: PORT }, resolve)
 );
 console.log(`🚀 Server ready at http://localhost:${PORT}/`);
+console.log(`🚀 Server ready on network at ${formatIPUrl(PORT as number)}`);
