@@ -1,75 +1,78 @@
 import prisma from "../../config/prisma.js";
 import { initOTPGeneration } from "../../services/otp.services.js";
+import { userService } from "../../services/user.services.js";
 
 const OTPResolvers = {
-  Query: {
-    otps: async (parent, args, context, info) => {
-      try {
-        const otps = await prisma.otp.findMany();
-
-        return otps;
-      } catch (error) {
-        console.log("Query.otps error", error);
-        throw new Error(error);
-      }
-    },
-    otp: async (parent, args, context, info) => {
-      try {
-        return await prisma.otp.findUnique({ where: { id: args.id } });
-      } catch (error) {
-        console.log("Query.otp error", error);
-        throw new Error(error);
-      }
-    },
-  },
   Mutation: {
-    sendOTP: async (parent, args, context, info) => {
+    requestOTP: async (parent, args, context, info) => {
       try {
-        console.log("args", args);
-
-        const email = args?.input?.email;
+        const email = args.email;
         if (!email) {
           throw new Error("Email is required");
         }
-        const response = await initOTPGeneration(email);
-        console.log({ response });
 
-        return `OTP sent to ${email} successfully`;
+        const response = await initOTPGeneration(email);
+        return response;
       } catch (error) {
-        console.log("Mutation.sendOTP error", error);
-        throw new Error(error);
+        console.log("Mutation.requestOTP error", error);
+        throw new Error(error.message || "Failed to request code");
       }
     },
     verifyOTP: async (parent, args, context, info) => {
       try {
-        console.log("args", args);
+        const { email, otp, shouldLogin } = args;
+        const normalizedEmail = email.toLowerCase().trim();
 
-        const email = args.input?.email;
-        const otp = args.input?.otp;
-        const otpDoc = await prisma.otp.findFirst({ where: { email, otp } });
-        console.log({ otpDoc });
+        const user = await prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          include: { loginOTP: true, roles: true },
+        });
 
-        if (!otpDoc) {
-          throw new Error("Invalid OTP");
+        if (!user || !user.loginOTP || !user.loginOTP.codeHash) {
+          throw new Error("Invalid or expired code.");
         }
-        // get user from email
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
-          throw new Error("User not found");
+
+        if (new Date() > user.loginOTP.expiresAt) {
+          throw new Error("Code has expired. Please request a new one.");
         }
-        // set user as verified
-        const updatedUser = await prisma.user.update({
+
+        const crypto = await import("crypto");
+        const inputHash = crypto.createHash("sha256").update(otp).digest("hex");
+
+        if (inputHash !== user.loginOTP.codeHash) {
+          await prisma.loginOTP.update({
+            where: { userId: user.id },
+            data: { attempts: (user.loginOTP.attempts || 0) + 1 },
+          });
+          throw new Error("Invalid code.");
+        }
+
+        // Success
+        // 1. Mark Email Verified
+        await prisma.user.update({
           where: { id: user.id },
           data: { emailVerified: true },
         });
 
-        console.log({ updatedUser });
+        // 2. Clean up OTP
+        await prisma.loginOTP.delete({ where: { userId: user.id } });
 
-        // await prisma.otp.delete({ where: { id: otpDoc.id } });
-        return true;
+        // 3. Generate Tokens if requested
+        let authData = {};
+        if (shouldLogin) {
+          const tokens = await userService.generateAuthTokens(user);
+          authData = tokens;
+        }
+
+        return {
+          success: true,
+          message: "Verification successful.",
+          ...authData,
+          user,
+        };
       } catch (error) {
         console.log("Mutation.verifyOTP error", error);
-        throw new Error(error);
+        throw new Error(error.message || "Verification failed");
       }
     },
   },

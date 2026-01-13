@@ -53,50 +53,72 @@ const sendVerificationMail = async (
 };
 
 const initOTPGeneration = async (email: string) => {
-  console.log({ email });
-
   try {
+    const normalizeEmail = email.toLowerCase().trim();
     // Check if user with email exists
-    const userExists = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email: normalizeEmail },
+      include: { loginOTP: true },
+    });
 
-    console.log({ userExists });
-
-    if (!userExists) {
-      throw new Error("User with email does not exist");
+    if (!user) {
+      // Security: Always return success
+      return {
+        success: true,
+        message: "If an account exists, a code has been sent.",
+      };
     }
 
-    // Generate OTP - 6 digits, no lowercase, no special chars
+    // Throttling
+    if (user.loginOTP?.lastSentAt) {
+      const timeSinceLast =
+        Date.now() - new Date(user.loginOTP.lastSentAt).getTime();
+      if (timeSinceLast < 60 * 1000) {
+        throw new Error("Please wait 60 seconds before requesting a new code.");
+      }
+    }
+
+    // Generate OTP - 6 digits
     const otp = otpGenerator.generate(6, {
       lowerCaseAlphabets: false,
+      upperCaseAlphabets: false,
       specialChars: false,
     });
 
-    // Save OTP to database with expiry (10 minutes from now)
-    // Note: Prisma doesn't have native TTL, so we rely on cron or logic to clean up, or just check expiry on read.
-    // However, Mongoose had TTL index. PostgreSQL doesn't have native TTL.
-    // We can use a scheduled job or just ignore expired ones.
-    // For now, we just save it.
+    // Hash Code
+    const crypto = await import("crypto");
+    const codeHash = crypto.createHash("sha256").update(otp).digest("hex");
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
-    // Check if OTP exists for this email
-    const existingOTP = await prisma.otp.findFirst({ where: { email } });
-
-    let OTPObject;
-    if (existingOTP) {
-      OTPObject = await prisma.otp.update({
-        where: { id: existingOTP.id },
-        data: { otp, createdAt: new Date() }, // Update createdAt to reset timer effectively if we check age
+    // Upsert LoginOTP
+    // Since it's a 1:1 relation, we update or create.
+    if (user.loginOTP) {
+      await prisma.loginOTP.update({
+        where: { userId: user.id },
+        data: {
+          codeHash,
+          expiresAt,
+          attempts: 0,
+          lastSentAt: new Date(),
+        },
       });
     } else {
-      OTPObject = await prisma.otp.create({
-        data: { email, otp },
+      await prisma.loginOTP.create({
+        data: {
+          userId: user.id,
+          codeHash,
+          expiresAt,
+          attempts: 0,
+          lastSentAt: new Date(),
+        },
       });
     }
 
     // Send verification email with user's name if available
     const mailResponse = await sendVerificationMail(
-      email,
+      user.email,
       otp,
-      userExists.firstName
+      user.firstName
     );
 
     console.log("Email sent:", mailResponse);
@@ -104,16 +126,10 @@ const initOTPGeneration = async (email: string) => {
     return {
       success: true,
       message: "OTP sent successfully",
-      data: OTPObject,
     };
   } catch (error) {
     console.error("OTP generation error:", error);
-
-    return {
-      success: false,
-      message: error.message || "Failed to generate OTP",
-      error,
-    };
+    throw new Error(error.message || "Failed to generate OTP");
   }
 };
 

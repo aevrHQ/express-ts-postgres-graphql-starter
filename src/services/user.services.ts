@@ -246,6 +246,19 @@ class UserService {
   }
 
   /**
+   * Generate auth tokens for a user
+   */
+  async generateAuthTokens(user: UserDocument): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: UserDocument;
+  }> {
+    const accessToken = createAccessToken(accessTokenData(user));
+    const refreshToken = createRefreshToken({ id: user.id });
+    return { accessToken, refreshToken, user };
+  }
+
+  /**
    * Login user
    */
   async loginUser(loginData: { email: string; password: string }): Promise<{

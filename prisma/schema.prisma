@@ -31,6 +31,7 @@ model User {
   files               File[]
   apiKeys             ApiKey[]
   passwordResetTokens PasswordResetToken[]
+  loginOTP            LoginOTP?
 }
 
 model Role {
@@ -74,12 +75,7 @@ model MagicLinkToken {
   @@index([tokenHash, used])
 }
 
-model Otp {
-  id        String   @id @default(uuid())
-  email     String
-  otp       String
-  createdAt DateTime @default(now())
-}
+// model Otp removed
 
 model PasswordResetToken {
   id        String   @id @default(uuid())
@@ -88,4 +84,14 @@ model PasswordResetToken {
   token     String
   expires   DateTime
   createdAt DateTime @default(now())
+}
+
+model LoginOTP {
+  id         String   @id @default(uuid())
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  lastSentAt DateTime
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
 }
