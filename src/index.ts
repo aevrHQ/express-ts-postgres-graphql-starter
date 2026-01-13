@@ -22,7 +22,7 @@ import {
   notFoundMiddleware,
 } from "./middlewares/error.middleware.js";
 import { ApiError } from "./services/error.services.js";
-import s3Router from "./routes/s3.routes.js";
+import uploadRouter from "./routes/upload.routes.js";
 import authRouter from "./routes/auth.routes.js";
 
 interface MyContext {
@@ -56,7 +56,7 @@ await server.start();
 // our loggerMiddleware.
 app.use(loggerMiddleware);
 
-app.use("/api/s3", validateApiKey({ populateOwner: true }), s3Router);
+app.use("/api/files", validateApiKey({ populateOwner: true }), uploadRouter);
 
 // Auth routes (magic link and OAuth REST endpoints)
 app.use("/api/auth", authRouter);

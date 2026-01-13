@@ -40,23 +40,18 @@ model Role {
 }
 
 model File {
-  id            String   @id @default(uuid())
-  name          String
-  type          String
-  size          Int
-  s3Key         String   @unique
-  s3Url         String
-  cloudinaryId  String?
-  cloudinaryUrl String?
-  pinataId      String?
-  pinataUrl     String?
-  supabaseId    String?
-  supabaseUrl   String?
-  purpose       String?
-  userId        String?
-  user          User?    @relation(fields: [userId], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  type      String
+  size      Int
+  provider  String
+  key       String   @unique
+  url       String
+  purpose   String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ApiKey {

@@ -11,7 +11,7 @@ export namespace Filters {
     id?: string | string[];
     name?: string;
     type?: string | string[]; // Filter by one or more MIME types
-    s3Key?: string;
+    key?: string;
     user?: string | string[]; // Filter by one or more user IDs
     purpose?: string | string[];
     search?: string; // Generic search on name and purpose
@@ -56,8 +56,8 @@ export const buildFileFilters = (
       : options.purpose;
   }
 
-  if (options.s3Key) {
-    filters.s3Key = options.s3Key;
+  if (options.key) {
+    filters.key = options.key;
   }
 
   if (options.search) {
