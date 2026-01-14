@@ -52,7 +52,10 @@ const sendVerificationMail = async (
   }
 };
 
-const initOTPGeneration = async (email: string) => {
+const initOTPGeneration = async (
+  email: string,
+  shouldCreate: boolean = false
+) => {
   try {
     const normalizeEmail = email.toLowerCase().trim();
     // Check if user with email exists
@@ -62,7 +65,14 @@ const initOTPGeneration = async (email: string) => {
     });
 
     if (!user) {
-      // Create new user if not exists
+      if (!shouldCreate) {
+        return {
+          success: true,
+          message: "If an account exists, a code has been sent.",
+        };
+      }
+
+      // Create new user if not exists and shouldCreate is true
       const firstName = normalizeEmail.split("@")[0];
       try {
         user = await prisma.user.create({
