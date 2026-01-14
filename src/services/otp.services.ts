@@ -56,17 +56,49 @@ const initOTPGeneration = async (email: string) => {
   try {
     const normalizeEmail = email.toLowerCase().trim();
     // Check if user with email exists
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email: normalizeEmail },
       include: { loginOTP: true },
     });
 
     if (!user) {
-      // Security: Always return success
-      return {
-        success: true,
-        message: "If an account exists, a code has been sent.",
-      };
+      // Create new user if not exists
+      const firstName = normalizeEmail.split("@")[0];
+      try {
+        user = await prisma.user.create({
+          data: {
+            email: normalizeEmail,
+            firstName,
+            lastName: "",
+            roles: {
+              connect: { name: "user" },
+            },
+          },
+          include: { loginOTP: true },
+        });
+      } catch (error) {
+        // Fallback if role "user" doesn't exist, create it (safe fallback)
+        /* 
+            Note: In a real app, you should ensure roles exist via seeding. 
+            But here we try to handle it gracefully or let it fail if DB is broken.
+         */
+        if (error.code === "P2025") {
+          // Record not found for relation
+          user = await prisma.user.create({
+            data: {
+              email: normalizeEmail,
+              firstName,
+              lastName: "",
+              roles: {
+                create: { name: "user" },
+              },
+            },
+            include: { loginOTP: true },
+          });
+        } else {
+          throw error;
+        }
+      }
     }
 
     // Throttling
